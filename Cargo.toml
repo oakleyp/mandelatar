@@ -8,7 +8,7 @@ authors = ["Oakley Peavler <oakleypeavler@gmail.com>"]
 
 [lib]
 name = "mandelib"
-path = "src/lib.rs"
+path = "src/lib/lib.rs"
 
 [[bin]]
 name = "mandelatar"
