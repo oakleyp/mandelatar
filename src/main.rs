@@ -7,7 +7,7 @@ use mandelib::mandelbrot;
 use env_logger::Env;
 use num::Complex;
 
-#[get("/{img_hash}")]
+#[get("/v1/{img_hash}")]
 async fn get_image(path: web::Path<String>) -> Result<HttpResponse, errors::UserError> {
     let img_hash: String = path.into_inner();
 
@@ -17,12 +17,9 @@ async fn get_image(path: web::Path<String>) -> Result<HttpResponse, errors::User
         });
     }
 
-    let png_bytes = mandelbrot::create_png(
-        (600, 600),
-        Complex::new(-1.30, 0.35),
-        Complex::new(-1.1, 0.20),
-    )
-    .map_err(|e| {
+    let img_params = mandelbrot::ImageParams::new_from_rand((600, 600));
+
+    let png_bytes = mandelbrot::create_png(&img_params).map_err(|e| {
         error!("Failed to create image: {}", e);
 
         errors::UserError::InternalError
