@@ -9,16 +9,27 @@ use num::Complex;
 use rand;
 use rand::Rng;
 use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
 
-const OUTPUT_WIDTH: usize = 600;
-const OUTPUT_HEIGHT: usize = 600;
+pub const OUTPUT_WIDTH: usize = 600;
+pub const OUTPUT_HEIGHT: usize = 600;
 
-#[derive(Debug, PartialEq)]
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "Complex::<f64>")]
+struct ComplexDef {
+    re: f64,
+    im: f64,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct ImageParams {
     bounds: (usize, usize),
+    #[serde(with = "ComplexDef")]
     upper_left: Complex<f64>,
+    #[serde(with = "ComplexDef")]
     lower_right: Complex<f64>,
     zoom_factor: f64,
+    rgb_consts: (u8, u8, u8),
 }
 
 impl ImageParams {
@@ -69,14 +80,48 @@ impl ImageParams {
             (upper_left.im, lower_right.im),
         );
 
+        let rgb_consts = (
+            rng.gen_range::<u8, _>(0..255),
+            rng.gen_range::<u8, _>(0..255),
+            rng.gen_range::<u8, _>(0..255),
+        );
+
         Self {
-            bounds,
+            bounds: (OUTPUT_WIDTH, OUTPUT_HEIGHT),
             upper_left,
             lower_right,
             zoom_factor,
+            rgb_consts,
         }
     }
 }
+
+// struct Palette(Vec);
+
+// impl Palette {
+//     pub fn new(size: u8) -> Self {
+//         range = size / 6;
+//         let mut colors: Vec<Rgb<u8>> = vec![];
+
+//         for i in 0..size {
+//             if (k <= range) {
+//                 let g = [[0]]
+//                 colors.append(Self::make_rgb(255, g, b, k))
+//             }
+//         }
+//     }
+
+//     fn lagrange(rg_start: (u8, u8), rg_end: (u8, u8), x: u8) -> u8 {
+//         let (x1, y1) = rg_start;
+//         let (x2, y2) = rg_end;
+
+//         (((y1 * (x - x2)) / (x1 - x2)) + ((y2 * (x - x1)) / (x2 - x1) ))
+//     }
+
+//     fn make_rgb(r: u8, g: u8, b: u8, k: u8) -> Rgb<u8> {
+
+//     }
+// }
 
 /// Try to determine if `c` is in the Mandelbrot set, using at most `limit`
 /// iterations to decide.
@@ -137,14 +182,15 @@ fn render(
     bounds: (usize, usize),
     upper_left: Complex<f64>,
     lower_right: Complex<f64>,
+    (r, g, b): (u8, u8, u8),
 ) {
     for row in 0..bounds.1 {
         for column in 0..bounds.0 {
             let point = pixel_to_point(bounds, (column, row), upper_left, lower_right);
 
             pixels[row * bounds.0 + column] = match escape_time(point, 255) {
-                None => Rgb([255, 255, 255]),
-                Some(count) => Rgb([2, 3, 255 - count as u8]),
+                None => Rgb([10, 10, 25]),
+                Some(count) => Rgb([r % count as u8, g % count as u8, b % count as u8]),
             };
         }
     }
@@ -176,7 +222,13 @@ pub fn create_png(img_params: &ImageParams) -> Result<Vec<u8>, String> {
                 img_params.lower_right,
             );
 
-            render(band, band_bounds, band_upper_left, band_lower_right);
+            render(
+                band,
+                band_bounds,
+                band_upper_left,
+                band_lower_right,
+                img_params.rgb_consts,
+            );
         });
     }
 
