@@ -1,12 +1,22 @@
-use enumflags2::{bitflags, make_bitflags, BitFlags};
+use enumflags2::{bitflags, BitFlags};
 use log::debug;
 use num::Complex;
 use rand;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 
+// Static image dimensions (for now)
 pub const OUTPUT_WIDTH: usize = 600;
 pub const OUTPUT_HEIGHT: usize = 600;
+
+// Interesting start points on the set
+pub const INTERESTING_SELECTIONS: [(Complex<f64>, Complex<f64>); 1] = [(
+    Complex {
+        re: -1.20,
+        im: 0.35,
+    },
+    Complex { re: -1.0, im: 0.20 },
+)];
 
 // Remote-derive serial/deserialize for foreign type num::Complex
 // Potential TODO: Make generic on Complex<T>
@@ -49,7 +59,7 @@ impl ImageParams {
         start + (pixel / length) * (end - start)
     }
 
-    fn enabled_transforms() -> Vec<ImageTransformFlags> {
+    fn enabled_rand_transforms() -> Vec<ImageTransformFlags> {
         vec![
             ImageTransformFlags::ROT180,
             ImageTransformFlags::HUEROT90,
@@ -57,19 +67,21 @@ impl ImageParams {
         ]
     }
 
+    fn rand_interesting_selection() -> (Complex<f64>, Complex<f64>) {
+        let mut rng = rand::thread_rng();
+
+        INTERESTING_SELECTIONS[rng.gen_range(0..INTERESTING_SELECTIONS.len())]
+    }
+
     // Given a set of image bounds, create a random set of ImageParams
     pub fn new_from_rand(bounds: (usize, usize)) -> Self {
         let mut rng = rand::thread_rng();
 
-        // These points were chosen as an "interesting" selection of the set
-        // to start from.
-        // The list of possible starting points should be expanded for this
-        // randomization procedure in the future.
-        let mut upper_left = Complex::new(-1.20, 0.35);
-        let mut lower_right = Complex::new(-1.0, 0.20);
+        let selection = Self::rand_interesting_selection();
+        let (mut upper_left, mut lower_right) = selection;
 
-        let exp = rng.gen_range(1..10);
-        let zoom_factor = 1.0 / 10.0_f64.powi(exp) * rng.gen_range(1.0..9.0);
+        let exp = rng.gen_range(1..=10);
+        let zoom_factor = 1.0 / 10.0_f64.powi(exp) * rng.gen_range(1.0..=9.0);
 
         debug!("zoom factor {} - {}", exp, zoom_factor);
 
@@ -77,8 +89,8 @@ impl ImageParams {
         let zfh = OUTPUT_HEIGHT as f64 * zoom_factor;
 
         // Randomly choose a pixel to zoom from
-        let middle_px_x: f64 = OUTPUT_WIDTH as f64 / 2.0 + rng.gen_range(-20.0..50.0);
-        let middle_px_y: f64 = OUTPUT_HEIGHT as f64 / 2.0 + rng.gen_range(-30.0..50.0);
+        let middle_px_x: f64 = OUTPUT_WIDTH as f64 / 2.0 + rng.gen_range(-20.0..=50.0);
+        let middle_px_y: f64 = OUTPUT_HEIGHT as f64 / 2.0 + rng.gen_range(-30.0..=50.0);
         let offset_left: f64 = 0.0;
         let offset_top: f64 = 0.0;
 
@@ -105,12 +117,12 @@ impl ImageParams {
         );
 
         let rgb_consts = (
-            rng.gen_range::<u8, _>(0..255),
-            rng.gen_range::<u8, _>(0..255),
-            rng.gen_range::<u8, _>(0..255),
+            rng.gen_range::<u8, _>(0..=255),
+            rng.gen_range::<u8, _>(0..=255),
+            rng.gen_range::<u8, _>(0..=255),
         );
 
-        let random_transform_flags = Self::enabled_transforms().iter().fold(
+        let random_transform_flags = Self::enabled_rand_transforms().iter().fold(
             BitFlags::EMPTY,
             |acc: BitFlags<_, _>, flag: &ImageTransformFlags| {
                 if rng.gen_bool(0.5) {

@@ -2,17 +2,12 @@ use crate::imageparams::{ImageParams, ImageTransformFlags, OUTPUT_HEIGHT, OUTPUT
 use image::codecs::png::PngEncoder;
 use image::imageops;
 use image::ColorType;
-use image::GenericImage;
 use image::ImageBuffer;
 use image::ImageEncoder;
 use image::Rgb;
 use image::RgbImage;
-use log::debug;
 use num::Complex;
-use rand;
-use rand::Rng;
 use rayon::prelude::*;
-use serde::{Deserialize, Serialize};
 
 /// Try to determine if `c` is in the Mandelbrot set, using at most `limit`
 /// iterations to decide.
