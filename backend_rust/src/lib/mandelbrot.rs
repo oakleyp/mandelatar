@@ -139,21 +139,26 @@ pub fn create_png(img_params: &ImageParams) -> Result<Vec<u8>, String> {
         });
     }
 
-    let mut buffer = vec![];
-
-    let encoder = PngEncoder::new(&mut buffer);
-
+    // Flatten 2d pixel array to 1d
     let pb_flat: Vec<u8> = pixels
         .iter()
         .flat_map(|rgb| rgb.0.iter())
         .cloned()
         .collect();
 
+    // Rewrap pixels to support image operations
     let mut image_buffer: RgbImage =
-        RgbImage::from_raw(img_bounds.0 as u32, img_bounds.1 as u32, pb_flat).unwrap();
+        RgbImage::from_raw(img_bounds.0 as u32, img_bounds.1 as u32, pb_flat).ok_or(
+            "Failed to convert pixel array to ImageBuffer (wrong size, somehow).".to_string(),
+        )?;
 
     apply_image_transforms_in_place(&img_params, &mut image_buffer);
 
+    // Result image buffer
+    let mut buffer = vec![];
+    let encoder = PngEncoder::new(&mut buffer);
+
+    // Write image_buffer to result buffer
     encoder
         .write_image(
             &image_buffer,
