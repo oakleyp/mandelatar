@@ -3,15 +3,15 @@ use std::env;
 
 const SERVER_PORT_DEFAULT: u16 = 8080;
 
-pub struct ServerArgs {
+pub struct ServerConfig {
     pub server_addr: String,
     pub server_port: u16,
 }
 
-impl ServerArgs {
+impl ServerConfig {
     pub fn load_from_env() -> Self {
         Self {
-            server_addr: match env::var("MANDELATAR_SERVER_HOST") {
+            server_addr: match env::var("MANDELATAR_SERVER_ADDR") {
                 Ok(host) => host,
                 Err(_) => "127.0.0.1".to_string(),
             },

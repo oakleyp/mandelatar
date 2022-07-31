@@ -9,7 +9,7 @@ This was built over the weekend just to start rehoning my Rust skills, and is by
 There is no front end yet - but opening the following link will redirect you to a random image url, which you can use anywhere you might want a 600x600 image:
 https://mandelatar.oakleypeavler.com/api/v1/random
 
-There are theoretically an infinite number of images due to the nature/magic of the Mandelbrot set, and they are generated deterministically based on the string in the resulting redirect URL. As a result, there is no application state and no need to run a database, at the cost of a small amount of processing time on the server side (and additional image load time on the client side).
+There are theoretically an infinite number of images due to the nature/magic of the Mandelbrot set, and they are generated deterministically based on the string in the resulting redirect URL. As a result, there is no per-user application state and no need to run a database, at the cost of a small amount of processing time on the server side (and additional image load time on the client side).
 
 ## Running locally
 
@@ -44,7 +44,7 @@ Then start the server via:
 The following env vars (shown here with the defaults) are used for configuration at runtime:
 
 ```
-MANDELATAR_SERVER_HOST=127.0.0.1
+MANDELATAR_SERVER_ADDR=127.0.0.1
 MANDELATAR_SERVER_PORT=8080
 # Some valid options: [error|warn|info|debug|trace]
 RUST_LOG=error

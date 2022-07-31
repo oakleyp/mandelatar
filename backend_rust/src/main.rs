@@ -1,5 +1,5 @@
 mod errors;
-mod server_args;
+mod server_config;
 
 use actix_web::{get, http::header, http::StatusCode, web, App, HttpResponse, HttpServer};
 use log::{error, info};
@@ -68,7 +68,7 @@ async fn main() -> std::io::Result<()> {
     let env = Env::default();
 
     env_logger::init_from_env(env);
-    let args = server_args::ServerArgs::load_from_env();
+    let args = server_config::ServerConfig::load_from_env();
 
     info!("Server started :)");
 
