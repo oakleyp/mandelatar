@@ -2,6 +2,8 @@ use bincode;
 use image::codecs::png::PngEncoder;
 use image::ColorType;
 use image::ImageEncoder;
+use image::Rgb;
+use image::RgbImage;
 use log::debug;
 use num::Complex;
 use rand;
@@ -31,12 +33,8 @@ impl ImageParams {
         let mut upper_left = Complex::new(-1.20, 0.35);
         let mut lower_right = Complex::new(-1.0, 0.20);
 
-        // let mut upper_left = Complex::new(-2.0, -1.0);
-        // let mut lower_right = Complex::new(1.0, 1.0);
-
         let exp = rng.gen_range(1..10);
         let zoom_factor = 1.0 / 10.0_f64.powi(exp) * rng.gen_range(1.0..9.0);
-        // let zoom_factor = 0.01;
 
         debug!("zoom factor {} - {}", exp, zoom_factor);
 
@@ -70,19 +68,6 @@ impl ImageParams {
             OUTPUT_HEIGHT as f64,
             (upper_left.im, lower_right.im),
         );
-
-        // let rndrange = rng.gen_range(20..50);
-
-        // for i in 0..rndrange {
-        //     upper_left = Complex {
-        //         re: upper_left.re - 0.1,
-        //         im: upper_left.im + 0.1,
-        //     };
-        //     lower_right = Complex {
-        //         re: lower_right.re - 0.1,
-        //         im: lower_right.im + 0.1,
-        //     };
-        // }
 
         Self {
             bounds,
@@ -148,7 +133,7 @@ fn pixel_to_point(
 /// arguments specify points on the complex plane corresponding to the upper-
 /// left and lower-right corners of the pixel buffer.
 fn render(
-    pixels: &mut [u8],
+    pixels: &mut [Rgb<u8>],
     bounds: (usize, usize),
     upper_left: Complex<f64>,
     lower_right: Complex<f64>,
@@ -158,20 +143,22 @@ fn render(
             let point = pixel_to_point(bounds, (column, row), upper_left, lower_right);
 
             pixels[row * bounds.0 + column] = match escape_time(point, 255) {
-                None => 0,
-                Some(count) => 255 - count as u8,
+                None => Rgb([255, 255, 255]),
+                Some(count) => Rgb([2, 3, 255 - count as u8]),
             };
         }
     }
 }
 
 pub fn create_png(img_params: &ImageParams) -> Result<Vec<u8>, String> {
-    let mut pixels = vec![0; img_params.bounds.0 * img_params.bounds.1];
+    let mut pixels = vec![Rgb([0, 0, 0]); img_params.bounds.0 * img_params.bounds.1];
 
     // Scope of slicing up `pixels` into horizontal bands
     {
-        let bands: Vec<(usize, &mut [u8])> =
-            pixels.chunks_mut(img_params.bounds.0).enumerate().collect();
+        let bands: Vec<(usize, &mut [Rgb<u8>])> = pixels
+            .chunks_mut(img_params.bounds.0)
+            .enumerate()
+            .collect::<Vec<(usize, &mut [Rgb<u8>])>>();
 
         bands.into_par_iter().for_each(|(i, band)| {
             let top = i;
@@ -193,17 +180,26 @@ pub fn create_png(img_params: &ImageParams) -> Result<Vec<u8>, String> {
         });
     }
 
-    let mut buffer: Vec<u8> = vec![];
+    let mut buffer = vec![];
+
     let encoder = PngEncoder::new(&mut buffer);
+
+    let pb_flat: Vec<u8> = pixels
+        .iter()
+        .flat_map(|rgb| rgb.0.iter())
+        .cloned()
+        .collect();
 
     encoder
         .write_image(
-            &pixels,
+            &pb_flat,
             OUTPUT_WIDTH as u32,
             OUTPUT_HEIGHT as u32,
-            ColorType::L8,
+            ColorType::Rgb8,
         )
         .map_err(|e| e.to_string())?;
 
-    Ok(buffer)
+    // debug!("{:?}", buffer);
+
+    Ok(buffer.to_vec())
 }
