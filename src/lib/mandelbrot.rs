@@ -2,20 +2,21 @@ use bincode;
 use image::codecs::png::PngEncoder;
 use image::ColorType;
 use image::ImageEncoder;
+use log::debug;
 use num::Complex;
 use rand;
 use rand::Rng;
 use rayon::prelude::*;
 
-const OUTPUT_WIDTH: u32 = 600;
-const OUTPUT_HEIGHT: u32 = 600;
-const ZOOM_FACTOR: f64 = 0.001;
+const OUTPUT_WIDTH: usize = 600;
+const OUTPUT_HEIGHT: usize = 600;
 
 #[derive(Debug, PartialEq)]
 pub struct ImageParams {
     bounds: (usize, usize),
     upper_left: Complex<f64>,
     lower_right: Complex<f64>,
+    zoom_factor: f64,
 }
 
 impl ImageParams {
@@ -33,31 +34,39 @@ impl ImageParams {
         // let mut upper_left = Complex::new(-2.0, -1.0);
         // let mut lower_right = Complex::new(1.0, 1.0);
 
-        let zfw = OUTPUT_WIDTH as f64 * ZOOM_FACTOR;
-        let zfh = OUTPUT_HEIGHT as f64 * ZOOM_FACTOR;
+        let exp = rng.gen_range(1..10);
+        let zoom_factor = 1.0 / 10.0_f64.powi(exp) * rng.gen_range(1.0..9.0);
+        // let zoom_factor = 0.01;
 
-        let middle_px: f64 = 600.0 / 2.0;
+        debug!("zoom factor {} - {}", exp, zoom_factor);
+
+        let zfw = OUTPUT_WIDTH as f64 * zoom_factor;
+        let zfh = OUTPUT_HEIGHT as f64 * zoom_factor;
+
+        let middle_px_x: f64 = OUTPUT_WIDTH as f64 / 2.0 + rng.gen_range(-20.0..50.0);
+        let middle_px_y: f64 = OUTPUT_HEIGHT as f64 / 2.0 + rng.gen_range(-30.0..50.0);
+        // let middle_px: f64 = 600.0 / 2.0;
         let offset_left: f64 = 0.0;
         let offset_top: f64 = 0.0;
 
         upper_left.re = Self::get_relative_point(
-            middle_px - offset_left - zfw,
+            middle_px_x - offset_left - zfw,
             OUTPUT_WIDTH as f64,
             (upper_left.re, lower_right.re),
         );
         lower_right.re = Self::get_relative_point(
-            middle_px - offset_top + zfw,
+            middle_px_x - offset_top + zfw,
             OUTPUT_WIDTH as f64,
             (upper_left.re, lower_right.re),
         );
 
         upper_left.im = Self::get_relative_point(
-            middle_px - offset_top - zfh,
+            middle_px_y - offset_top - zfh,
             OUTPUT_HEIGHT as f64,
             (upper_left.im, lower_right.im),
         );
         lower_right.im = Self::get_relative_point(
-            middle_px - offset_top + zfh,
+            middle_px_y - offset_top + zfh,
             OUTPUT_HEIGHT as f64,
             (upper_left.im, lower_right.im),
         );
@@ -79,6 +88,7 @@ impl ImageParams {
             bounds,
             upper_left,
             lower_right,
+            zoom_factor,
         }
     }
 }
@@ -187,7 +197,12 @@ pub fn create_png(img_params: &ImageParams) -> Result<Vec<u8>, String> {
     let encoder = PngEncoder::new(&mut buffer);
 
     encoder
-        .write_image(&pixels, OUTPUT_WIDTH, OUTPUT_HEIGHT, ColorType::L8)
+        .write_image(
+            &pixels,
+            OUTPUT_WIDTH as u32,
+            OUTPUT_HEIGHT as u32,
+            ColorType::L8,
+        )
         .map_err(|e| e.to_string())?;
 
     Ok(buffer)
