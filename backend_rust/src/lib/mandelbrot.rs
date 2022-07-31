@@ -1,9 +1,7 @@
-use bincode;
 use image::codecs::png::PngEncoder;
 use image::ColorType;
 use image::ImageEncoder;
 use image::Rgb;
-use image::RgbImage;
 use log::debug;
 use num::Complex;
 use rand;
@@ -33,14 +31,24 @@ pub struct ImageParams {
 }
 
 impl ImageParams {
+    fn get_bounds(&self) -> (usize, usize) {
+        // Restrict changing from default bounds, for now
+        (OUTPUT_WIDTH, OUTPUT_HEIGHT)
+    }
+
     fn get_relative_point(pixel: f64, length: f64, set: (f64, f64)) -> f64 {
         let (start, end) = set;
         start + (pixel / length) * (end - start)
     }
 
+    // Given a set of image bounds, create a random set of ImageParams
     pub fn new_from_rand(bounds: (usize, usize)) -> Self {
         let mut rng = rand::thread_rng();
 
+        // These points were chosen as an "interesting" selection of the set
+        // to start from.
+        // The list of possible starting points should be expanded for this
+        // randomization procedure in the future.
         let mut upper_left = Complex::new(-1.20, 0.35);
         let mut lower_right = Complex::new(-1.0, 0.20);
 
@@ -52,9 +60,9 @@ impl ImageParams {
         let zfw = OUTPUT_WIDTH as f64 * zoom_factor;
         let zfh = OUTPUT_HEIGHT as f64 * zoom_factor;
 
+        // Randomly choose a pixel to zoom from
         let middle_px_x: f64 = OUTPUT_WIDTH as f64 / 2.0 + rng.gen_range(-20.0..50.0);
         let middle_px_y: f64 = OUTPUT_HEIGHT as f64 / 2.0 + rng.gen_range(-30.0..50.0);
-        // let middle_px: f64 = 600.0 / 2.0;
         let offset_left: f64 = 0.0;
         let offset_top: f64 = 0.0;
 
@@ -87,7 +95,7 @@ impl ImageParams {
         );
 
         Self {
-            bounds: (OUTPUT_WIDTH, OUTPUT_HEIGHT),
+            bounds,
             upper_left,
             lower_right,
             zoom_factor,
@@ -95,33 +103,6 @@ impl ImageParams {
         }
     }
 }
-
-// struct Palette(Vec);
-
-// impl Palette {
-//     pub fn new(size: u8) -> Self {
-//         range = size / 6;
-//         let mut colors: Vec<Rgb<u8>> = vec![];
-
-//         for i in 0..size {
-//             if (k <= range) {
-//                 let g = [[0]]
-//                 colors.append(Self::make_rgb(255, g, b, k))
-//             }
-//         }
-//     }
-
-//     fn lagrange(rg_start: (u8, u8), rg_end: (u8, u8), x: u8) -> u8 {
-//         let (x1, y1) = rg_start;
-//         let (x2, y2) = rg_end;
-
-//         (((y1 * (x - x2)) / (x1 - x2)) + ((y2 * (x - x1)) / (x2 - x1) ))
-//     }
-
-//     fn make_rgb(r: u8, g: u8, b: u8, k: u8) -> Rgb<u8> {
-
-//     }
-// }
 
 /// Try to determine if `c` is in the Mandelbrot set, using at most `limit`
 /// iterations to decide.
@@ -196,28 +177,30 @@ fn render(
     }
 }
 
+// Generate a PNG deterministically from the given set of `ImageParams`
 pub fn create_png(img_params: &ImageParams) -> Result<Vec<u8>, String> {
-    let mut pixels = vec![Rgb([0, 0, 0]); img_params.bounds.0 * img_params.bounds.1];
+    let img_bounds = img_params.get_bounds();
+    let mut pixels = vec![Rgb([0, 0, 0]); img_bounds.0 * img_bounds.1];
 
-    // Scope of slicing up `pixels` into horizontal bands
+    // Scope of slicing up `pixels` into horizontal bands for parallel processing
     {
         let bands: Vec<(usize, &mut [Rgb<u8>])> = pixels
-            .chunks_mut(img_params.bounds.0)
+            .chunks_mut(img_bounds.0)
             .enumerate()
             .collect::<Vec<(usize, &mut [Rgb<u8>])>>();
 
         bands.into_par_iter().for_each(|(i, band)| {
             let top = i;
-            let band_bounds = (img_params.bounds.0, 1);
+            let band_bounds = (img_bounds.0, 1);
             let band_upper_left = pixel_to_point(
-                img_params.bounds,
+                img_bounds,
                 (0, top),
                 img_params.upper_left,
                 img_params.lower_right,
             );
             let band_lower_right = pixel_to_point(
-                img_params.bounds,
-                (img_params.bounds.0, top + 1),
+                img_bounds,
+                (img_bounds.0, top + 1),
                 img_params.upper_left,
                 img_params.lower_right,
             );
@@ -250,8 +233,6 @@ pub fn create_png(img_params: &ImageParams) -> Result<Vec<u8>, String> {
             ColorType::Rgb8,
         )
         .map_err(|e| e.to_string())?;
-
-    // debug!("{:?}", buffer);
 
     Ok(buffer.to_vec())
 }
