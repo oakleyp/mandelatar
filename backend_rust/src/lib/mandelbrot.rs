@@ -1,108 +1,18 @@
+use crate::imageparams::{ImageParams, ImageTransformFlags, OUTPUT_HEIGHT, OUTPUT_WIDTH};
 use image::codecs::png::PngEncoder;
+use image::imageops;
 use image::ColorType;
+use image::GenericImage;
+use image::ImageBuffer;
 use image::ImageEncoder;
 use image::Rgb;
+use image::RgbImage;
 use log::debug;
 use num::Complex;
 use rand;
 use rand::Rng;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-
-pub const OUTPUT_WIDTH: usize = 600;
-pub const OUTPUT_HEIGHT: usize = 600;
-
-#[derive(Serialize, Deserialize)]
-#[serde(remote = "Complex::<f64>")]
-struct ComplexDef {
-    re: f64,
-    im: f64,
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-pub struct ImageParams {
-    bounds: (usize, usize),
-    #[serde(with = "ComplexDef")]
-    upper_left: Complex<f64>,
-    #[serde(with = "ComplexDef")]
-    lower_right: Complex<f64>,
-    zoom_factor: f64,
-    rgb_consts: (u8, u8, u8),
-}
-
-impl ImageParams {
-    fn get_bounds(&self) -> (usize, usize) {
-        // Restrict changing from default bounds, for now
-        (OUTPUT_WIDTH, OUTPUT_HEIGHT)
-    }
-
-    fn get_relative_point(pixel: f64, length: f64, set: (f64, f64)) -> f64 {
-        let (start, end) = set;
-        start + (pixel / length) * (end - start)
-    }
-
-    // Given a set of image bounds, create a random set of ImageParams
-    pub fn new_from_rand(bounds: (usize, usize)) -> Self {
-        let mut rng = rand::thread_rng();
-
-        // These points were chosen as an "interesting" selection of the set
-        // to start from.
-        // The list of possible starting points should be expanded for this
-        // randomization procedure in the future.
-        let mut upper_left = Complex::new(-1.20, 0.35);
-        let mut lower_right = Complex::new(-1.0, 0.20);
-
-        let exp = rng.gen_range(1..10);
-        let zoom_factor = 1.0 / 10.0_f64.powi(exp) * rng.gen_range(1.0..9.0);
-
-        debug!("zoom factor {} - {}", exp, zoom_factor);
-
-        let zfw = OUTPUT_WIDTH as f64 * zoom_factor;
-        let zfh = OUTPUT_HEIGHT as f64 * zoom_factor;
-
-        // Randomly choose a pixel to zoom from
-        let middle_px_x: f64 = OUTPUT_WIDTH as f64 / 2.0 + rng.gen_range(-20.0..50.0);
-        let middle_px_y: f64 = OUTPUT_HEIGHT as f64 / 2.0 + rng.gen_range(-30.0..50.0);
-        let offset_left: f64 = 0.0;
-        let offset_top: f64 = 0.0;
-
-        upper_left.re = Self::get_relative_point(
-            middle_px_x - offset_left - zfw,
-            OUTPUT_WIDTH as f64,
-            (upper_left.re, lower_right.re),
-        );
-        lower_right.re = Self::get_relative_point(
-            middle_px_x - offset_top + zfw,
-            OUTPUT_WIDTH as f64,
-            (upper_left.re, lower_right.re),
-        );
-
-        upper_left.im = Self::get_relative_point(
-            middle_px_y - offset_top - zfh,
-            OUTPUT_HEIGHT as f64,
-            (upper_left.im, lower_right.im),
-        );
-        lower_right.im = Self::get_relative_point(
-            middle_px_y - offset_top + zfh,
-            OUTPUT_HEIGHT as f64,
-            (upper_left.im, lower_right.im),
-        );
-
-        let rgb_consts = (
-            rng.gen_range::<u8, _>(0..255),
-            rng.gen_range::<u8, _>(0..255),
-            rng.gen_range::<u8, _>(0..255),
-        );
-
-        Self {
-            bounds,
-            upper_left,
-            lower_right,
-            zoom_factor,
-            rgb_consts,
-        }
-    }
-}
 
 /// Try to determine if `c` is in the Mandelbrot set, using at most `limit`
 /// iterations to decide.
@@ -177,6 +87,25 @@ fn render(
     }
 }
 
+pub fn apply_image_transforms_in_place(
+    img_params: &ImageParams,
+    image: &mut ImageBuffer<Rgb<u8>, Vec<u8>>,
+) {
+    let transform_flags = img_params.transform_flags;
+
+    if transform_flags.contains(ImageTransformFlags::ROT180) {
+        imageops::rotate180_in_place(image);
+    }
+
+    if transform_flags.contains(ImageTransformFlags::HUEROT90) {
+        imageops::huerotate(image, 90);
+    }
+
+    if transform_flags.contains(ImageTransformFlags::INVERT) {
+        imageops::invert(image);
+    }
+}
+
 // Generate a PNG deterministically from the given set of `ImageParams`
 pub fn create_png(img_params: &ImageParams) -> Result<Vec<u8>, String> {
     let img_bounds = img_params.get_bounds();
@@ -225,9 +154,14 @@ pub fn create_png(img_params: &ImageParams) -> Result<Vec<u8>, String> {
         .cloned()
         .collect();
 
+    let mut image_buffer: RgbImage =
+        RgbImage::from_raw(img_bounds.0 as u32, img_bounds.1 as u32, pb_flat).unwrap();
+
+    apply_image_transforms_in_place(&img_params, &mut image_buffer);
+
     encoder
         .write_image(
-            &pb_flat,
+            &image_buffer,
             OUTPUT_WIDTH as u32,
             OUTPUT_HEIGHT as u32,
             ColorType::Rgb8,

@@ -3,6 +3,7 @@ mod server_config;
 
 use actix_web::{get, http::header, http::StatusCode, web, App, HttpResponse, HttpServer};
 use log::{error, info};
+use mandelib::imageparams;
 use mandelib::mandelbrot;
 
 use base64;
@@ -13,9 +14,9 @@ const MAX_B64_LEN: usize = 500;
 
 #[get("/api/v1/random")]
 async fn get_random() -> Result<HttpResponse, errors::UserError> {
-    let img_params = mandelbrot::ImageParams::new_from_rand((
-        mandelbrot::OUTPUT_WIDTH,
-        mandelbrot::OUTPUT_HEIGHT,
+    let img_params = imageparams::ImageParams::new_from_rand((
+        imageparams::OUTPUT_WIDTH,
+        imageparams::OUTPUT_HEIGHT,
     ));
     let imp_bin = bincode::serialize(&img_params).map_err(|e| {
         error!("Failed to serialize img params: {}", e);
@@ -46,7 +47,7 @@ async fn get_image(path: web::Path<String>) -> Result<HttpResponse, errors::User
         }
     })?;
 
-    let img_params: mandelbrot::ImageParams = bincode::deserialize(&bin).map_err(|e| {
+    let img_params: imageparams::ImageParams = bincode::deserialize(&bin).map_err(|e| {
         error!("Failed to deserialize from b64: {}", e);
         errors::UserError::ValidationError {
             message: "Invalid base64 provided".to_string(),

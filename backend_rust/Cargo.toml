@@ -27,3 +27,4 @@ rayon = "1"
 rand = "*"
 base64 = "0.13.0"
 serde = { version = "1.0.140", features = ["derive"] }
+enumflags2 = { version = "0.7.5", features = ["serde"] }
