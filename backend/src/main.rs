@@ -65,7 +65,7 @@ async fn get_random() -> Result<HttpResponse, errors::UserError> {
     let b64 = base64::encode_config(imp_bin, base64::URL_SAFE);
 
     Ok(HttpResponse::build(StatusCode::TEMPORARY_REDIRECT)
-        .insert_header((header::LOCATION, format!("/api/v1/img/{}", b64)))
+        .insert_header((header::LOCATION, format!("/api/v1/img/{}.png", b64)))
         .finish())
 }
 
@@ -96,6 +96,8 @@ async fn get_image(
             message: "invalid base64 provided".to_string(),
         });
     }
+
+    let img_b64 = img_b64.replace(".png", "");
 
     let bin = base64::decode_config(img_b64, base64::URL_SAFE).map_err(|e| {
         error!("Failed to decode from b64: {}", e);

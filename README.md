@@ -2,7 +2,7 @@
 
 An app for generating random images of the Mandelbrot set that can be referenced by a single string, with no DB required - "Like Gravatar, but with the Mandelbrot set".
 
-This currently runs as a system combining Cloudflare [Workers](https://developers.cloudflare.com/workers/) for generating images (where possible) at the near edge of the client, and a digital ocean droplet hosting the frontend and generating images too expensive to be run on workers.
+This currently runs as a system combining Cloudflare [Workers](https://developers.cloudflare.com/workers/) for generating images (where possible) at the near edge of the client, and a Digital Ocean Droplet hosting the frontend and generating images too expensive to be run on workers.
 
 ## Live Demo / Production Instance
 
@@ -74,3 +74,30 @@ From the `edge/` directory, you can use the [Wrangler Docs](./edge/wrangler_docs
 - Better mandelbrot variety
 - Custom image resolutions
 - Frontend Improvements
+
+## API
+
+Assuming the host is https://mandelatar.com:
+
+- Requests on the path `/api/v1/...` are routed directly to the droplet server
+- Requests on the path `/i1/...` are routed to the worker process, but should fail over to the droplet server when the worker reaches free tier limits, or the image requested is determined to be too complicated (expensive) for the worker to handle
+
+### Available Query Param Options
+
+Currently there is one available render configuration param: `?overlay=profile`. Using this option will add a "user profile" overlay to the rendered output, e.g. https://mandelatar.com/api/v1/random?overlay=profile
+
+Additional config params will be documented here as there are added.
+
+| Param | Description | Possible Values|
+| ---- | ---- | --- |
+| overlay | Renders a preset overlay image in the output | profile |
+
+## Examples
+
+![Image 1](https://mandelatar.com/api/v1/img/WAIAAAAAAABYAgAAAAAAAHPdINacevO_XuBkOef41z8ICQGBYsbuv7P95XaoYMc_DupC8js25D9p35AB)
+
+![Image 2](https://mandelatar.com/api/v1/img/WAIAAAAAAABYAgAAAAAAAJiTLYv6Z_G_FgGIwF2J0T8En9PILp7wv8RxDcciRs4_iCpEuUkewz5_6-oB?overlay=profile)
+
+![Image 3](https://mandelatar.com/api/v1/img/WAIAAAAAAABYAgAAAAAAAGsGaBqMXfG_j3F3yJAM0j9BCvNHJpXwv3Q291IWV88_NSl0VwTW8D0BTLMA)
+
+![Image 4](https://mandelatar.com/api/v1/img/WAIAAAAAAABYAgAAAAAAAOYjkn24sPG_oJTPsYQ50T-HEGCz0NzwvwPv5kQihc0_kt9ERNBbgj-sCzcC)
