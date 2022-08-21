@@ -19,7 +19,7 @@ Given you have docker installed, this should just be a matter of running the fol
 
 This sets up a docker stack with the rust backend running behind a Traefik proxy (although locally, the proxy can be bypassed).
 
-Once the stack is running, you should be able to reach the service locally at through Traefik at:  
+Once the stack is running, you should be able to reach the service locally through Traefik at:  
 `localhost/api/v1/random`
 
 Or, you can reach the service directly at:
@@ -58,7 +58,7 @@ See the [env_logger](https://docs.rs/env_logger/latest/env_logger/) docs for mor
 
 ## Deploying in production
 
-The architecture used here follows the guidelines of [dockerswarm.rocks](https://dockerswarm.rocks). If you want to run this in production, you'll need to first set up a root traefik proxy as described there. This system will be served through a second proxy If all else is configured properly, deploying is then just a matter of running the `scripts/deploy.sh` script on your server with the proper env vars filled in, e.g:
+The architecture used here follows the guidelines of [dockerswarm.rocks](https://dockerswarm.rocks). If you want to run this in production, you'll need to first set up a root traefik proxy as described there. This system will be served through a second proxy behind that root proxy. If all else is configured properly, deploying is just a matter of running the `scripts/deploy.sh` script on your server with the proper env vars filled in, e.g:
 
 ```
 sudo DOMAIN=mandelatar.com TRAEFIK_TAG=mandelatar.com STACK_NAME=mandelatar-com TAG=prod bash ./scripts/deploy.sh
