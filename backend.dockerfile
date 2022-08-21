@@ -9,16 +9,16 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --pr
 
 WORKDIR /app/
 
-COPY ./mandelatar-core /app/mandelatar-core
-COPY ./backend_rust /app/backend_rust
+COPY ./core /app/core
+COPY ./backend /app/backend
 
-RUN sh -c "source $HOME/.cargo/env && cd backend_rust && cargo build --release"
+RUN sh -c "source $HOME/.cargo/env && cd backend && cargo build --release"
 
 FROM alpine:3.10
 
 WORKDIR /app/
 
-COPY --from=builder /app/backend_rust/target/release/mandelatar /app/mandelatar
+COPY --from=builder /app/backend/target/release/mandelatar /app/mandelatar
 
 EXPOSE 80
 

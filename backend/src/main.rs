@@ -1,9 +1,11 @@
 mod errors;
 mod server_config;
 
+use actix_cors::Cors;
 use actix_web::{
     get, http::header, http::StatusCode, web, App, HttpRequest, HttpResponse, HttpServer,
 };
+use env_logger::Env;
 use log::{error, info};
 use mandelatar_core::image_params::{
     ImageParams, ImagePostProcessConfig, OUTPUT_HEIGHT, OUTPUT_WIDTH,
@@ -11,10 +13,6 @@ use mandelatar_core::image_params::{
 use mandelatar_core::mandelbrot;
 use mandelatar_core::post_processing;
 use url::Url;
-
-use base64;
-use bincode;
-use env_logger::Env;
 
 const MAX_B64_LEN: usize = 500;
 
@@ -25,7 +23,7 @@ fn parse_image_q_params(
         format!(
             "{}{}",
             req.url_for_static("random_image").unwrap(),
-            req.uri().to_string()
+            req.uri()
         )
         .as_ref(),
     )
@@ -47,7 +45,16 @@ fn parse_image_q_params(
     })
 }
 
+#[get("/i1/random")]
+async fn get_random_from_worker_failover() -> Result<HttpResponse, errors::UserError> {
+    get_random().await
+}
+
 #[get("/api/v1/random", name = "random_image")]
+async fn get_random_direct() -> Result<HttpResponse, errors::UserError> {
+    get_random().await
+}
+
 async fn get_random() -> Result<HttpResponse, errors::UserError> {
     let img_params = ImageParams::new_from_rand((OUTPUT_WIDTH, OUTPUT_HEIGHT));
     let imp_bin = bincode::serialize(&img_params).map_err(|e| {
@@ -62,7 +69,22 @@ async fn get_random() -> Result<HttpResponse, errors::UserError> {
         .finish())
 }
 
+#[get("/i1/i/{img_b64}")]
+async fn get_image_from_worker_failover(
+    path: web::Path<String>,
+    req: HttpRequest,
+) -> Result<HttpResponse, errors::UserError> {
+    get_image(path, req).await
+}
+
 #[get("/api/v1/img/{img_b64}", name = "get_image")]
+async fn get_image_direct(
+    path: web::Path<String>,
+    req: HttpRequest,
+) -> Result<HttpResponse, errors::UserError> {
+    get_image(path, req).await
+}
+
 async fn get_image(
     path: web::Path<String>,
     req: HttpRequest,
@@ -116,12 +138,40 @@ async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(env);
     let args = server_config::ServerConfig::load_from_env();
 
+    let server_port = args.server_port;
+    let server_addr = args.server_addr.to_owned();
+
     info!("Server started :)");
 
-    HttpServer::new(|| App::new().service(get_random).service(get_image))
-        .bind((args.server_addr, args.server_port))?
-        .run()
-        .await?;
+    HttpServer::new(move || {
+        let args = args.clone();
+        let cors = Cors::default()
+            .allowed_origin_fn(move |origin, _req_head| {
+                for accept_origin in &args.cors_origins {
+                    if accept_origin.trim().is_empty() {
+                        continue;
+                    }
+
+                    if origin.as_bytes().ends_with(accept_origin.as_bytes()) {
+                        return true;
+                    }
+                }
+
+                false
+            })
+            .allowed_methods(vec!["GET", "POST"])
+            .max_age(3600);
+
+        App::new()
+            .wrap(cors)
+            .service(get_random_direct)
+            .service(get_random_from_worker_failover)
+            .service(get_image_direct)
+            .service(get_image_from_worker_failover)
+    })
+    .bind((server_addr, server_port))?
+    .run()
+    .await?;
 
     Ok(())
 }

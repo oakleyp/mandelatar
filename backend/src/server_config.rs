@@ -2,10 +2,13 @@ use log::error;
 use std::env;
 
 const SERVER_PORT_DEFAULT: u16 = 8080;
+const CORS_ORIGINS_DEFAULT: &str = "";
 
+#[derive(Debug, Clone)]
 pub struct ServerConfig {
     pub server_addr: String,
     pub server_port: u16,
+    pub cors_origins: Vec<String>,
 }
 
 impl ServerConfig {
@@ -24,6 +27,16 @@ impl ServerConfig {
                     SERVER_PORT_DEFAULT
                 }),
                 Err(_) => SERVER_PORT_DEFAULT,
+            },
+            cors_origins: match env::var("MANDELATAR_CORS_ORIGINS") {
+                Ok(origins) => match origins.trim() {
+                    "" => vec![],
+                    _ => origins.trim().split(',').map(|s| s.to_string()).collect(),
+                },
+                Err(_) => CORS_ORIGINS_DEFAULT
+                    .split(',')
+                    .map(|s| s.to_string())
+                    .collect(),
             },
         }
     }
