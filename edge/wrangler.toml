@@ -1,0 +1,20 @@
+name = "mandelatar-edge"
+workers_dev = true
+compatibility_date = "2022-05-15"
+main = "build/worker/shim.mjs"
+
+[vars]
+WORKERS_RS_VERSION = "0.0.9"
+CORS_ORIGIN = "http://localhost,http://localhost:8000,https://mandelatar-edge.oakleypeavler.com,https://mandelatar.com,https://mandelatar.oakleypeavler.com"
+
+[[kv_namespaces]]
+    binding = "MANDELATAR_ASSETS"
+    id = "3a9514cf05bd47d9987be7939cddc247"
+    preview_id = "52ec2070d9c64e088a56de037ce9bcc2"
+
+
+[build]
+command = "cargo install --verbose worker-build && worker-build --verbose --release" # required
+
+# read more about configuring your Worker via wrangler.toml at:
+# https://developers.cloudflare.com/workers/cli-wrangler/configuration
