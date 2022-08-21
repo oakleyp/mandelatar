@@ -2,12 +2,11 @@
 
 An app for generating random images of the Mandelbrot set that can be referenced by a single string, with no DB required - "Like Gravatar, but with the Mandelbrot set".
 
-This was built over the weekend just to start rehoning my Rust skills, and is by no means ready for production use.
+This currently runs as a system combining Cloudflare [Workers](https://developers.cloudflare.com/workers/) for generating images (where possible) at the near edge of the client, and a digital ocean droplet hosting the frontend and generating images too expensive to be run on workers.
 
-## Live Demo
+## Live Demo / Production Instance
 
-There is no front end yet - but opening the following link will redirect you to a random image url, which you can use anywhere you might want a 600x600 image:
-https://mandelatar.oakleypeavler.com/api/v1/random
+[mandelatar.com](https://mandelatar.com)
 
 There are theoretically an infinite number of images due to the nature/magic of the Mandelbrot set, and they are generated deterministically based on the string in the resulting redirect URL. As a result, there is no per-user application state and no need to run a database, at the cost of a small amount of processing time on the server side (and additional image load time on the client side).
 
@@ -33,19 +32,24 @@ You can reach the Traefik dashboard at:
 
 ### Directly on your machine
 
-Given you have the rust toolchain (edition 2021) installed, you can build the debug version by running the following in the `backend_rust/` directory:
+Given you have the rust toolchain (edition 2021) installed, you can build the debug version by running the following in the `backend/` directory:
 
 `$ cargo build`
 
 Then start the server via:
 
-`$ ./target/debug/mandelatar`
+`$ [ENV VARS] ./target/debug/mandelatar`
+
+For example:  
+
+`$ RUST_LOG=debug MANDELATAR_SERVER_PORT=8080 ./target/debug/mandelatar`
 
 The following env vars (shown here with the defaults) are used for configuration at runtime:
 
 ```
 MANDELATAR_SERVER_ADDR=127.0.0.1
 MANDELATAR_SERVER_PORT=8080
+MANDELATAR_CORS_ORIGINS="..." # Change these to your own origin servers
 # Some valid options: [error|warn|info|debug|trace]
 RUST_LOG=error
 ```
@@ -54,12 +58,19 @@ See the [env_logger](https://docs.rs/env_logger/latest/env_logger/) docs for mor
 
 ## Deploying in production
 
-The architecture used here follows the guidelines of [dockerswarm.rocks](https://dockerswarm.rocks). If you want to run this in production now for some reason, you'll need to first set up a root traefik proxy as described there. If all else is configured properly, deploying is then just a matter of running the `scripts/deploy.sh` script with the proper env vars filled in.
+The architecture used here follows the guidelines of [dockerswarm.rocks](https://dockerswarm.rocks). If you want to run this in production, you'll need to first set up a root traefik proxy as described there. This system will be served through a second proxy If all else is configured properly, deploying is then just a matter of running the `scripts/deploy.sh` script on your server with the proper env vars filled in, e.g:
+
+```
+sudo DOMAIN=mandelatar.com TRAEFIK_TAG=mandelatar.com STACK_NAME=mandelatar-com TAG=prod bash ./scripts/deploy.sh
+```
+
+## Setting up the Cloudflare Worker:
+
+From the `edge/` directory, you can use the [Wrangler Docs](./edge/wrangler_docs.md) for general information on configuration and deployment of the worker via wrangler.
 
 ## WIPs
 
-- Frontend
 - Tests
-- Benchmarks
 - Better mandelbrot variety
 - Custom image resolutions
+- Frontend Improvements
