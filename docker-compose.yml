@@ -73,7 +73,8 @@ services:
     env_file:
       - .env
     build:
-      context: ./backend_rust
+      context: ./
+      dockerfile: backend.dockerfile
     deploy:
       labels:
         - traefik.enable=true
