@@ -1,13 +1,14 @@
-use crate::imageparams::{ImageParams, ImageTransformFlags, OUTPUT_HEIGHT, OUTPUT_WIDTH};
+use crate::errors;
+use crate::image_params::{ImageParams, ImageTransformFlags, OUTPUT_HEIGHT, OUTPUT_WIDTH};
+use cfg_if::cfg_if;
 use image::codecs::png::PngEncoder;
 use image::imageops;
 use image::ColorType;
 use image::ImageBuffer;
 use image::ImageEncoder;
-use image::Rgb;
-use image::RgbImage;
+use image::Rgba;
+use image::RgbaImage;
 use num::Complex;
-use rayon::prelude::*;
 
 /// Try to determine if `c` is in the Mandelbrot set, using at most `limit`
 /// iterations to decide.
@@ -64,7 +65,7 @@ fn pixel_to_point(
 /// arguments specify points on the complex plane corresponding to the upper-
 /// left and lower-right corners of the pixel buffer.
 fn render(
-    pixels: &mut [Rgb<u8>],
+    pixels: &mut [Rgba<u8>],
     bounds: (usize, usize),
     upper_left: Complex<f64>,
     lower_right: Complex<f64>,
@@ -75,8 +76,8 @@ fn render(
             let point = pixel_to_point(bounds, (column, row), upper_left, lower_right);
 
             pixels[row * bounds.0 + column] = match escape_time(point, 255) {
-                None => Rgb([10, 10, 25]),
-                Some(count) => Rgb([r % count as u8, g % count as u8, b % count as u8]),
+                None => Rgba([10, 10, 25, 255]),
+                Some(count) => Rgba([r % count as u8, g % count as u8, b % count as u8, 255]),
             };
         }
     }
@@ -84,7 +85,7 @@ fn render(
 
 pub fn apply_image_transforms_in_place(
     img_params: &ImageParams,
-    image: &mut ImageBuffer<Rgb<u8>, Vec<u8>>,
+    image: &mut ImageBuffer<Rgba<u8>, Vec<u8>>,
 ) {
     let transform_flags = img_params.transform_flags;
 
@@ -102,18 +103,27 @@ pub fn apply_image_transforms_in_place(
 }
 
 // Generate a PNG deterministically from the given set of `ImageParams`
-pub fn create_png(img_params: &ImageParams) -> Result<Vec<u8>, String> {
+pub fn create_png(img_params: &ImageParams) -> Result<Vec<u8>, errors::ImageProcessingError> {
     let img_bounds = img_params.get_bounds();
-    let mut pixels = vec![Rgb([0, 0, 0]); img_bounds.0 * img_bounds.1];
+    let mut pixels = vec![Rgba([0, 0, 0, 255]); img_bounds.0 * img_bounds.1];
 
     // Scope of slicing up `pixels` into horizontal bands for parallel processing
     {
-        let bands: Vec<(usize, &mut [Rgb<u8>])> = pixels
-            .chunks_mut(img_bounds.0)
-            .enumerate()
-            .collect::<Vec<(usize, &mut [Rgb<u8>])>>();
+        cfg_if! {
+            if #[cfg(feature = "parallel")] {
+                use rayon::prelude::*;
+                let bands: Vec<(usize, &mut [Rgba<u8>])> = pixels
+                    .chunks_mut(img_bounds.0)
+                    .enumerate()
+                    .collect::<Vec<(usize, &mut [Rgba<u8>])>>();
+                let bands_iter = bands.into_par_iter();
+            } else {
+                let bands = pixels.chunks_mut(img_bounds.0).enumerate();
+                let bands_iter = bands.into_iter();
+            }
+        }
 
-        bands.into_par_iter().for_each(|(i, band)| {
+        bands_iter.for_each(|(i, band)| {
             let top = i;
             let band_bounds = (img_bounds.0, 1);
             let band_upper_left = pixel_to_point(
@@ -140,19 +150,18 @@ pub fn create_png(img_params: &ImageParams) -> Result<Vec<u8>, String> {
     }
 
     // Flatten 2d pixel array to 1d
-    let pb_flat: Vec<u8> = pixels
-        .iter()
-        .flat_map(|rgb| rgb.0.iter())
-        .cloned()
-        .collect();
+    let pb_flat: Vec<u8> = pixels.iter().flat_map(|rgb| rgb.0.into_iter()).collect();
 
     // Rewrap pixels to support image operations
-    let mut image_buffer: RgbImage =
-        RgbImage::from_raw(img_bounds.0 as u32, img_bounds.1 as u32, pb_flat).ok_or(
-            "Failed to convert pixel array to ImageBuffer (wrong size, somehow).".to_string(),
+    let mut image_buffer: RgbaImage =
+        RgbaImage::from_raw(img_bounds.0 as u32, img_bounds.1 as u32, pb_flat).ok_or_else(
+            || errors::ImageProcessingError::Default {
+                message: "Failed to convert pixel array to ImageBuffer (wrong size, somehow)."
+                    .to_string(),
+            },
         )?;
 
-    apply_image_transforms_in_place(&img_params, &mut image_buffer);
+    apply_image_transforms_in_place(img_params, &mut image_buffer);
 
     // Result image buffer
     let mut buffer = vec![];
@@ -164,9 +173,11 @@ pub fn create_png(img_params: &ImageParams) -> Result<Vec<u8>, String> {
             &image_buffer,
             OUTPUT_WIDTH as u32,
             OUTPUT_HEIGHT as u32,
-            ColorType::Rgb8,
+            ColorType::Rgba8,
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| errors::ImageProcessingError::Default {
+            message: format!("Failed to encode output image: {}", e),
+        })?;
 
     Ok(buffer.to_vec())
 }

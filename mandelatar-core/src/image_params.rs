@@ -5,9 +5,11 @@ use rand;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 
+use crate::errors;
+
 // Static image dimensions (for now)
-pub const OUTPUT_WIDTH: usize = 600;
-pub const OUTPUT_HEIGHT: usize = 600;
+pub const OUTPUT_WIDTH: usize = 300;
+pub const OUTPUT_HEIGHT: usize = 300;
 
 // Interesting start points on the set
 pub const INTERESTING_SELECTIONS: [(Complex<f64>, Complex<f64>); 1] = [(
@@ -141,5 +143,58 @@ impl ImageParams {
             rgb_consts,
             transform_flags: random_transform_flags,
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub enum OverlayImageTypes {
+    Profile { width: u32, height: u32 },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ImagePostProcessConfig {
+    pub overlay_image_type: Option<OverlayImageTypes>,
+}
+
+impl ImagePostProcessConfig {
+    pub fn from_query_params(
+        param_pairs: &[(impl AsRef<str>, impl AsRef<str>)],
+    ) -> Result<Self, errors::InvalidPostProcessConfig> {
+        let mut result = ImagePostProcessConfig {
+            overlay_image_type: None,
+        };
+
+        if param_pairs.len() < 1 {
+            return Ok(result);
+        }
+
+        for (k, v) in param_pairs.into_iter() {
+            match k.as_ref() {
+                "overlay" => match v.as_ref() {
+                    "profile" => {
+                        result.overlay_image_type = Some(OverlayImageTypes::Profile {
+                            width: OUTPUT_WIDTH as u32,
+                            height: OUTPUT_HEIGHT as u32,
+                        })
+                    }
+                    _ => {
+                        return Err(errors::InvalidPostProcessConfig::Default {
+                            message: "Invalid overlay type given.".to_string(),
+                        })
+                    }
+                },
+                _ => {}
+            }
+        }
+
+        Ok(result)
+    }
+
+    pub fn should_post_process(&self) -> bool {
+        if self.overlay_image_type.is_some() {
+            return true;
+        }
+
+        false
     }
 }
